@@ -1,7 +1,13 @@
 import 'dart:async';
-
+import 'dart:math' show Random;
 import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/phone_number.dart';
+import 'package:sign_button/sign_button.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:random_string/random_string.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,42 +20,19 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Sample Auth Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Phone Number Authentication'),
+      home: const MyHomePage(title: 'Authentication Demo'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -58,9 +41,14 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  TextEditingController phoneController = TextEditingController();
+  FocusNode focusNode = FocusNode();
+  bool _isLoading = false;
+  bool _isValid = false;
+  late bool result;
+ 
 
-  String message = "";
+  String? phoneNumber;
 
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
@@ -68,7 +56,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-
     initDeepLinks();
   }
 
@@ -79,85 +66,155 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
-  void _incrementCounter() {
+    void _startLoading() {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _isLoading = true;
+    });
+  }
+
+  void _stopLoading() {
+    setState(() {
+      _isLoading = false;
     });
   }
 
   Future<void> initDeepLinks() async {
     _appLinks = AppLinks();
-
-    // Handle links
     _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
       debugPrint('onAppLink: $uri');
-        _counter = int.parse(uri.queryParameters['count'] ?? "0");
-        message = uri.queryParameters['message'] ?? "";
-        setState(() {});
+      _stopLoading();
+      result = bool.parse(uri.queryParameters['result']!) ;
+      print("Result from ADN: $result");
+      phoneController.clear();
+      showModalBottomSheet(
+         isDismissible: false,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(10),
+            ),
+          ),
+          backgroundColor: Colors.white,
+          context: context,
+          builder: ((context) {
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: double.infinity,
+                ),
+                Text(
+                  result
+                      ? "Successfully authenticated"
+                      : "Authentication failed",
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(
+                  height: 30,
+                ),
+                Icon(
+                  result ? Icons.verified_rounded : Icons.error_outline,
+                  color: result ? Colors.green.shade800 : Colors.red.shade700,
+                  size: 200,
+                ),
+                const SizedBox(
+                  height: 25,
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                     setState(() {
+                      Navigator.pop(context);
+                    });
+                  }, 
+                  child: const Text("Reset"))
+              ],
+            );
+          })
+      );
     });
+  }
+
+  void authentication() async {
+    _startLoading();
+    String code = randomNumeric(6);
+    launchUrl(
+      Uri.parse(
+          'adn://authentication?tel=$phoneNumber&code=$code'),
+      mode: LaunchMode.externalNonBrowserApplication,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: Container(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+            const SizedBox(height: 40,),
+            const Text("Login", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),),
+             const SizedBox(height: 40,),
+          IntlPhoneField(
+            enabled: !_isLoading,
+            controller: phoneController,
+            keyboardType: TextInputType.number,
+            autovalidateMode: AutovalidateMode.disabled,
+            focusNode: focusNode,
+            initialCountryCode: 'CI',
+            decoration: InputDecoration( 
+              labelText: 'Phone number',
+              labelStyle: const TextStyle(color: Colors.black87),
+              focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.black87),
+                      borderRadius: BorderRadius.circular(10),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Color.fromARGB(255, 175, 13, 1)),
+                      borderRadius: BorderRadius.circular(10),
+              ),
+              border:const OutlineInputBorder(
+                borderSide: BorderSide(),
+              ),
+              
+              counterText: '',
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            onChanged: (phone) {
+                 setState(() {
+                 try {
+                  _isValid = phone.isValidNumber();
+                 } catch (e) {
+                  _isValid = false;
+                 }
+                
+                 phoneNumber = phone.completeNumber;
+              });
+            },
+          ),
+          const SizedBox(height: 35,),
+           SignInButton(
+            buttonType: ButtonType.custom, 
+            width: double.infinity,
+            buttonSize: ButtonSize.large,
+            btnColor: Colors.green,
+            btnTextColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
+            customImage: CustomImage("assets/images/logo_adn.png"),
+            btnText: "Continue with ADN",
+            onPressed: !_isValid ? null : () async {
+              authentication();
+            })
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
